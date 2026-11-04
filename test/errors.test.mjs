@@ -280,7 +280,7 @@ describe('isTransportFailure', () => {
 
 describe('the classification table itself', () => {
   it('uses only the kinds, outcomes and severities the data contract allows', () => {
-    // docs/DATA-CONTRACT.md fixes these vocabularies; the dashboard switches on them.
+    // docs/DATA-CONTRACT.md fixes these vocabularies; anything visualising runs switches on them.
     const kinds = new Set(['benign', 'retry', 'critical', 'fault']);
     const outcomes = new Set(['landed', 'not-due', 'already-done', 'gate-closed', 'missed-window', 'error']);
     const severities = new Set(['info', 'warn', 'critical']);

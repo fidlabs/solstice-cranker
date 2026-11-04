@@ -282,11 +282,11 @@ The address starts `f1`. Write it down: it goes in the `CLAIM_ADDRESS` variable.
 ### Load it, without the clipboard
 
 ```bash
-gh secret set CLAIM_PRIVATE_KEY --repo decentramike/solstice-cranker < ~/.solstice/claim-mainnet.key
+gh secret set CLAIM_PRIVATE_KEY --env production --repo fidlabs/solstice-cranker < ~/.solstice/claim-mainnet.key
 ```
 
 ```bash
-gh variable set CLAIM_ADDRESS --repo decentramike/solstice-cranker --body f1...
+gh variable set CLAIM_ADDRESS --repo fidlabs/solstice-cranker --body f1...
 ```
 
 `CLAIM_ADDRESS` must be the address of that key. A run whose key does not match it stops

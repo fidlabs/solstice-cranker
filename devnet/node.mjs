@@ -2,7 +2,7 @@
 /**
  * Starts (or adopts) the local Hardhat EDR node the rest of devnet/ talks to.
  *
- * Idempotent on purpose: `npm run demo` and `npm run rehearsal` both want a node, and a
+ * Idempotent on purpose: `npm run rehearsal` and the integration tests want a node, and a
  * developer usually already has one open in another terminal. Killing and restarting it
  * would throw away the deployment and the mined history, so anything already answering on
  * 8545 with our chainId is adopted as-is. A *different* chain on that port is a hard error

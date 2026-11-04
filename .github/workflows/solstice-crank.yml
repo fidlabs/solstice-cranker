@@ -109,7 +109,7 @@ jobs:
           cache: npm
 
       - name: Install runtime dependencies only
-        # --omit=dev keeps hardhat, the devnet and the dashboard off this runner.
+        # --omit=dev keeps hardhat and the devnet off this runner.
         run: npm ci --omit=dev
 
       - name: Crank

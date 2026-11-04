@@ -12,7 +12,7 @@
     "So only postPeriod and verificationWindow can drift silently. The cranker cross-checks the",
     "schedule they produce against aggregatedFilecoinPayVolume() on every run and alerts on divergence.",
     "",
-    "genesisUnix is the chain's genesis timestamp, so any epoch's wall-clock time is genesisUnix + epoch * epochSeconds. scripts/crank-simple.mjs uses it to schedule entirely from the clock, with no chain reads at all. Verified against two blocks 1000 epochs apart on each network. null on the devnet, whose epochs are not wall-clock.",
+    "genesisUnix is the chain's genesis timestamp, so any epoch's wall-clock time is genesisUnix + epoch * epochSeconds. The gate uses it to place crank windows on the wall clock. Verified against two blocks 1000 epochs apart on each network. null on the devnet, whose epochs are not wall-clock.",
     "",
     "addressPrefix (f/t) and claimMinBalanceFil belong to the native Claim sender (src/claim.mjs). The devnet's native side is devnet/fake-lotus.mjs, which reports the network name 'devnet'."
   ],

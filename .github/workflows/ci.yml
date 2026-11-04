@@ -58,8 +58,6 @@ jobs:
               -not -path './node_modules/*' \
               -not -path './vendor/*' \
               -not -path './devnet/artifacts/*' \
-              -not -path './dashboard/node_modules/*' \
-              -not -path './dashboard/dist/*' \
               -print0
           )
           if [ ${#files[@]} -eq 0 ]; then

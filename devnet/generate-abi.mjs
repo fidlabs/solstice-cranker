@@ -58,7 +58,7 @@ for (const target of TARGETS) {
   summary.push(`${target.name}: ${fns} functions, ${errs} errors, ${evs} events`);
 }
 
-// The FVM precompile mock's log topic, so the devnet dashboard can decode f02 traffic.
+// The FVM precompile mock's log topic, so devnet tooling can decode f02 traffic.
 selectors.events[keccakId('FvmActorCall(bytes)')] = 'FvmActorCall(bytes)';
 
 writeFileSync(

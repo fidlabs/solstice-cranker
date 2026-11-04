@@ -44,7 +44,7 @@ They skip, with the reason printed, when:
 - `devnet/.deployed.json` is missing, or the addresses in it have no code;
 - the Hardhat artifacts have not been built;
 - **another process is driving the node.** The suite mines, snapshots and reverts, so it
-  refuses to run alongside `npm run rehearsal`, `npm run demo` or the devnet server rather
+  refuses to run alongside `npm run rehearsal` rather
   than racing them and throwing away their work.
 
 To run them:
