@@ -322,6 +322,7 @@ export async function runClaim(config, deps = {}) {
   const batches = batch(owed.sort((a, b) => (b.amount > a.amount ? 1 : b.amount < a.amount ? -1 : 0)), config.batchSize);
   let sent = 0;
   let exitCode = 0;
+  let wouldPayAtto = 0n;
   for (const group of batches) {
     const wallets = group.map((o) => o.wallet);
     const names = wallets.map((w) => describeWallet(w, config.prefix));
@@ -379,6 +380,7 @@ export async function runClaim(config, deps = {}) {
       actions.push(action({ ...base, decision: 'dry-run', outcome: 'would-send', message: `would send (${config.dryRunReason}); params ${toHex(claimParams(wallets))}` }));
       log.info(`Claim(2, ${names.length} wallet(s)): would pay ${fil(payout)} FIL for at most ${fil(maxFee)} FIL`);
       sent += 1; // a dry run spends the same budget a real run would
+      wouldPayAtto += payout;
       continue;
     }
 
@@ -406,6 +408,21 @@ export async function runClaim(config, deps = {}) {
     const paid = Return ? decodeClaimReturn(Return).reduce((s, a) => s + a, 0n) : 0n;
     actions.push(action({ ...base, decision: 'sent', outcome: 'landed', cid, payoutFil: fil(paid), message: `landed at epoch ${found.Height}, paid ${fil(paid)} FIL` }));
     log.info(actions.at(-1).message);
+  }
+
+  // A scheduled run that found FIL owed but could only simulate -- no key, or Mainnet sends off --
+  // would otherwise be a green run that did nothing. Nothing is lost (Claim has no deadline), so a
+  // warning; a dry run somebody asked for by hand is not news.
+  const wouldHaveSent = actions.filter((a) => a.decision === 'dry-run');
+  if (wouldHaveSent.length && config.mode !== 'manual' && config.dryRunReason !== 'CLAIM_DRY_RUN is set') {
+    alerts.raise({
+      severity: 'warn',
+      title: `Solstice: a ${config.mode} Claim is due but was not sent`,
+      body:
+        `${wouldHaveSent.length} Claim batch(es) would pay ${fil(wouldPayAtto)} FIL now, but this run only simulated because ` +
+        `${config.dryRunReason}. The FIL waits in f02 until someone claims it.`,
+      context: ctxAlert(),
+    });
   }
 
   if (alerts.worst === 'critical') exitCode = 1;

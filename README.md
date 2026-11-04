@@ -99,16 +99,19 @@ version; this table is the short one. Three further variables (`CRANK_CONFIRMATI
 | :-- | :-- | :-- | :-- |
 | `NETWORK` | variable | yes | Which entry of `config/networks.json` to use: `devnet`, `calibnet` or `mainnet`. |
 | `RPC_URL` | secret | yes | Filecoin JSON-RPC endpoint. Use a public or rate-limited one. Never a node whose RPC exposes admin or wallet methods. |
-| `CRANKER_PRIVATE_KEY` | secret | yes | The gas wallet. Holds nothing but FIL for fees, and has no role or permission on either contract. |
+| `CRANKER_PRIVATE_KEY` | `production` environment secret | yes | The gas wallet. Holds nothing but FIL for fees, and has no role or permission on either contract. |
 | `SRA_ADDRESS` | variable | no | Overrides the committed SRA address. Set this when the deployment lands or moves. |
 | `SWA_ADDRESS` | variable | no | Same, for the SWA. |
-| `CLAIM_PRIVATE_KEY` | secret | for Claim | The Claim gas wallet, an f1 key. Only the Claim workflow gets it. Never the cranker key. |
+| `CLAIM_PRIVATE_KEY` | `production` environment secret | for Claim | The Claim gas wallet, an f1 key. Only the Claim workflow gets it. Never the cranker key. |
 | `CLAIM_ADDRESS` / `CRANKER_ADDRESS` | variables | no | Public addresses of the two wallets, so every job checks both balances without holding the other key. |
 | `CRANK_PAUSED` | variable | no | Any truthy value: read state and report, send nothing. Stops the crank and the Claim. |
 | `MAINNET_SEND_ENABLED` | variable | for Mainnet sends | Unset: every Mainnet run is a dry run. |
 | `CRANK_DRY_RUN` / `CLAIM_DRY_RUN` | dispatch input | no | Simulate and report, broadcast nothing. |
 | `CLAIM_MAX_FEE_FIL` / `CLAIM_MAX_MESSAGES` | variables | no | Claim guards. Defaults 0.05 FIL per message, 3 messages per run. |
 | `CRANK_MAX_GATE_CATCHUP` | variable | no | Cap on `quarterlyGateCheck()` calls in one run while catching up. Default 8. |
+| `CRANK_MAX_FEE_FIL` | variable | no | The most one crank message may cost. Default 0.1 FIL; above it nothing is sent and a warning goes out. |
+| `CRANK_TX_TIMEOUT_MS` | variable | no | How long to wait for a message to confirm before alerting that it is stuck. Default 8 minutes. |
+| `WATCHDOG_CC` | variable | no | Who the watchdog's GitHub issue mentions, e.g. a team handle. |
 | `CRANK_MIN_BALANCE_FIL` | variable | no | Low-balance warning threshold. Defaults to the network's `minBalanceFil`. |
 | `ALERT_TRANSPORT` | variable | no | `console` (default), `sendgrid`, `resend`, `webhook`. Comma-separate for several. |
 | `ALERT_EMAIL_TO` / `ALERT_EMAIL_FROM` | variables | no | Alert recipient and sender. |

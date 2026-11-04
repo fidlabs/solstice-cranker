@@ -142,6 +142,14 @@ To turn sends off again: `gh variable delete MAINNET_SEND_ENABLED --repo decentr
 A value in the wrong tab reads as empty. Secrets are write-only and masked in logs;
 variables are public in a public repository.
 
+### Keep the keys in the `production` environment
+
+The crank and Claim jobs run in a GitHub environment called `production`. Put `CRANKER_PRIVATE_KEY`
+and `CLAIM_PRIVATE_KEY` there, not in the repository-wide secrets, and limit the environment to
+`main`: **Settings → Environments → production → Deployment branches and tags → Selected branches →
+`main`**. A workflow run from any other branch then cannot read the keys. Do not add required
+reviewers -- they would hold every scheduled run for approval.
+
 ### Secrets
 
 | Name | Value | Used by |
@@ -164,6 +172,9 @@ variables are public in a public repository.
 | `CRANK_MIN_BALANCE_FIL` / `CLAIM_MIN_BALANCE_FIL` | `0.1` | Low-balance thresholds. |
 | `CLAIM_MAX_FEE_FIL` / `CLAIM_MAX_MESSAGES` | `0.05` / `3` | Claim guards. |
 | `CRANK_MAX_GATE_CATCHUP` | `8` | Gate calls per run while catching up. |
+| `CRANK_MAX_FEE_FIL` | `0.1` | The most one crank message may cost (gas limit × max fee per gas). Above it, nothing is sent and a warning goes out. |
+| `CRANK_TX_TIMEOUT_MS` | `480000` | How long to wait for a message to confirm before alerting that it is stuck. |
+| `WATCHDOG_CC` | `@fidlabs/solstice` | Who the watchdog issue mentions. Empty: nobody. |
 | `CRANK_CONFIRMATIONS` | `2` | Confirmations to wait after a send. |
 | `CRANK_LOG_LEVEL` | `debug` | When investigating. |
 | `WATCHDOG_GRACE_EPOCHS` | `120` | How long after binding the watchdog calls a crank overdue. |
@@ -222,12 +233,31 @@ Space manual runs out: the concurrency group keeps one pending run and drops the
 | `Claim sender has a pending message` | warn | A message from the Claim key is already in the mpool; nothing was sent on top. | Look up the sender on an explorer; if it is stuck, wait for it to clear or replace it. |
 | `Claim sent but not confirmed` | warn | Pushed, not seen on chain within 10 minutes. | Look up the CID before anything else is sent. |
 | `Claim failed on chain` | critical | A simulated Claim landed with a non-zero exit code. | Read the receipt; pause (`CRANK_PAUSED`) if it repeats. |
+| `submitShares(q) is due but the cranker will not send it` | warn | A quarter is bound and unsubmitted while `CRANK_PAUSED` is set or Mainnet sends are off. | Unpause or set `MAINNET_SEND_ENABLED`, or confirm another sender (the watchtower backup) has it. |
+| `… held back by the fee cap` | warn | The message could cost more than `CRANK_MAX_FEE_FIL`. Nothing was sent. | Usually a fee spike: wait, the next run retries. If it persists, check the RPC endpoint before raising the cap. |
+| `… broadcast as 0x… but not confirmed within N min` | critical | Sent, not mined in `CRANK_TX_TIMEOUT_MS`. | [A stuck transaction](#a-stuck-transaction). |
+| `… earlier transaction(s) from the cranker are still pending` | critical | A message of ours is still in the mpool, so nothing new was sent behind it. | [A stuck transaction](#a-stuck-transaction). |
+| `a weekly / post-submit Claim is due but was not sent` | warn | FIL is owed, but the run only simulated (no `CLAIM_PRIVATE_KEY`, or Mainnet sends off). | Set the key / enable sends, or confirm another sender claims. Nothing is lost meanwhile. |
 | `Cranker ran degraded` | warn | An optional read failed; submitShares still went ahead. | None if the next run is clean. |
 | `Solstice cranker aborted` … `RPC node failed 3 times` | critical | The node did not answer for the call with a deadline. | Check the endpoint; [change it](#changing-an-rpc-endpoint) if it stays down. |
 | `reverted with unrecognised selector 0x…` | critical | `abi/` does not match the deployed contract. | Rebuild `abi/` from the deployed commit. |
 | `chainAgreesWithConfig: false` | warn / critical | `postPeriod`/`verificationWindow` disagree with the chain. | Pause; fix config; `npm run schedule`. |
 | Watchdog issue opened | warn | A crank is overdue on chain, or a gas wallet is low. | Work the issue: `npm run preflight` first. |
 | **`NotLatestQuarter(q)`** / **quarter q never submitted** | **critical** | **Quarter q's share map is gone.** | [Escalate below.](#what-to-do-if-notlatestquarter-fires) Do not retry. |
+
+---
+
+## A stuck transaction
+
+The cranker waits `CRANK_TX_TIMEOUT_MS` (8 minutes) for each message to confirm. When one does not,
+it alerts with the hash, and every later run refuses to send behind it while the wallet has a
+pending nonce -- stacking more messages behind a stuck one only makes it worse. It does not replace
+messages itself.
+
+| Command | Expected result |
+| :-- | :-- |
+| Look up the hash on the explorer (Filfox) | Either it landed (the next run is clean) or it is pending |
+| If it is pending for more than an hour: replace it from a machine holding the key, same nonce, higher fees (`lotus mpool replace --auto <cid>` against a node you trust, or a wallet that supports replacement) | The pending count drops to 0; the next run sends normally |
 
 ---
 

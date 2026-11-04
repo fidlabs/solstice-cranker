@@ -158,6 +158,18 @@ export function loadConfig(rawEnv = process.env, { requireKey = true } = {}) {
     throw new ConfigError('CRANK_MAX_GATE_CATCHUP must be an integer between 1 and 64');
   }
 
+  // The most one crank transaction may cost (gasLimit x maxFeePerGas). Fee data comes from the RPC
+  // endpoint, so without a ceiling a broken or hostile endpoint could spend the whole wallet on one
+  // call -- and an empty wallet is how a deadline gets missed. A normal Filecoin crank costs a tiny
+  // fraction of this; the cap only bites in a fee spike or against a lying node, and a held-back
+  // submitShares alerts and retries on the next run (its window is a whole quarter).
+  const maxFeeFil = env.CRANK_MAX_FEE_FIL ?? '0.1';
+  const maxFeeWei = parseFil(maxFeeFil, 'CRANK_MAX_FEE_FIL');
+  if (maxFeeWei === 0n) throw new ConfigError('CRANK_MAX_FEE_FIL must be more than 0');
+
+  // How long to wait for a broadcast transaction to confirm before reporting it as stuck.
+  const txTimeoutMs = intIn(env, 'CRANK_TX_TIMEOUT_MS', 480_000, 1_000, 3_600_000);
+
   return {
     networkName: name,
     label: network.label,
@@ -189,6 +201,9 @@ export function loadConfig(rawEnv = process.env, { requireKey = true } = {}) {
     claimAddress: env.CLAIM_ADDRESS ?? null,
     claimMinBalanceFil: String(env.CLAIM_MIN_BALANCE_FIL ?? network.claimMinBalanceFil ?? '0.1'),
     maxGateCatchup,
+    maxFeeWei,
+    maxFeeFil: String(maxFeeFil),
+    txTimeoutMs,
     targetQuarter,
 
     dryRun: truthy(env.CRANK_DRY_RUN) || mainnetSendsBlocked(name, env),
@@ -197,12 +212,13 @@ export function loadConfig(rawEnv = process.env, { requireKey = true } = {}) {
       : mainnetSendsBlocked(name, env)
         ? 'NETWORK=mainnet and MAINNET_SEND_ENABLED is not set'
         : null,
+    mainnetBlocked: mainnetSendsBlocked(name, env),
     stateDir: env.CRANK_STATE_DIR ? resolve(env.CRANK_STATE_DIR) : null,
 
     alerts: {
       transports: (env.ALERT_TRANSPORT ?? 'console').split(',').map((s) => s.trim()).filter(Boolean),
       to: env.ALERT_EMAIL_TO ?? null,
-      from: env.ALERT_EMAIL_FROM ?? 'cranker@fil.org',
+      from: env.ALERT_EMAIL_FROM ?? null,
       sendgridKey: env.SENDGRID_API_KEY ?? null,
       resendKey: env.RESEND_API_KEY ?? null,
       webhookUrl: env.ALERT_WEBHOOK_URL ?? null,

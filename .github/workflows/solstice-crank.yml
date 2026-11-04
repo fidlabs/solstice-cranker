@@ -16,7 +16,8 @@
 # share map is lost for good (NotLatestQuarter). The gate fails open: a missing schedule file
 # or an unreadable chain means the crank runs.
 #
-# This job holds a private key. It gets `contents: read` and nothing else.
+# This job holds a private key. It gets `contents: read` and nothing else, and runs in the
+# `production` environment so the key can be limited to the main branch.
 #
 # Source: https://github.com/filecoin-project/solstice/issues/68
 # Operations: docs/RUNBOOK.md
@@ -60,7 +61,7 @@ jobs:
       go: ${{ steps.gate.outputs.go }}
     steps:
       - name: Check out the schedule and the gate only
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
           sparse-checkout: |
@@ -86,19 +87,23 @@ jobs:
     needs: gate
     if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
+    # Holds CRANKER_PRIVATE_KEY. Store it as an environment secret of `production` and restrict that
+    # environment to the main branch (Settings -> Environments), so a workflow run from any other
+    # branch cannot read it. Do not add required reviewers: they would block every scheduled run.
+    environment: production
     # A catch-up run can send up to CRANK_MAX_GATE_CATCHUP (default 8) gate calls, each
     # waiting on confirmations at 30s per epoch. 20 minutes covers that with room spare.
     timeout-minutes: 20
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Nothing here pushes. Do not leave a git credential on a runner holding a key.
           persist-credentials: false
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: npm
@@ -124,6 +129,8 @@ jobs:
           # --- behaviour ---
           CRANK_DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
           CRANK_MAX_GATE_CATCHUP: ${{ vars.CRANK_MAX_GATE_CATCHUP }}
+          CRANK_MAX_FEE_FIL: ${{ vars.CRANK_MAX_FEE_FIL }}
+          CRANK_TX_TIMEOUT_MS: ${{ vars.CRANK_TX_TIMEOUT_MS }}
           CRANK_MIN_BALANCE_FIL: ${{ vars.CRANK_MIN_BALANCE_FIL }}
           CRANK_CONFIRMATIONS: ${{ vars.CRANK_CONFIRMATIONS }}
           CRANK_LOG_LEVEL: ${{ vars.CRANK_LOG_LEVEL }}

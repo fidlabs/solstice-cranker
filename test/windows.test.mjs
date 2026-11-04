@@ -204,12 +204,18 @@ describe('scripts/gate.mjs', () => {
   let server;
   let url;
   let storage = {};
+  let chainId = 314n;
   before(async () => {
     server = createServer((req, res) => {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
-        const { params } = JSON.parse(body);
+        const { method, params } = JSON.parse(body);
+        if (method === 'eth_chainId') {
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x' + chainId.toString(16) }));
+          return;
+        }
         const key = `${params[0].toLowerCase()}:${BigInt(params[1])}`;
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x' + (storage[key] ?? 0n).toString(16).padStart(64, '0') }));
@@ -242,6 +248,18 @@ describe('scripts/gate.mjs', () => {
     assert.equal((await gate('crank', env({ GATE_NOW: now }))).go, true);
     setChain({ submitted: 1, checked: 1 });
     assert.equal((await gate('crank', env({ GATE_NOW: now }))).go, false);
+  });
+
+  it('treats a node on the wrong chain as unreadable and fails open, instead of trusting its storage', async () => {
+    const now = iso(binding(g, 1) + 300);
+    setChain({ submitted: 1, checked: 1 }); // would close the window -- if it were the right chain
+    chainId = 314159n; // calibnet: same SRA/SWA addresses, different progress
+    try {
+      const d = await gate('crank', env({ GATE_NOW: now }));
+      assert.equal(d.go, true);
+    } finally {
+      chainId = 314n;
+    }
   });
 
   it('fails open when the RPC is unreachable', async () => {
