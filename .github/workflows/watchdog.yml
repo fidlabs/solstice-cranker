@@ -109,6 +109,9 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          # The subscriber email service (alerts-service/): added to the transports whenever the URL is set.
+          ALERT_SERVICE_URL: ${{ vars.ALERT_SERVICE_URL }}
+          ALERT_SERVICE_TOKEN: ${{ secrets.ALERT_SERVICE_TOKEN }}
           WATCHDOG_GRACE_EPOCHS: ${{ vars.WATCHDOG_GRACE_EPOCHS }}
           CRANK_CONFIRMATIONS: ${{ vars.CRANK_CONFIRMATIONS }}
           CRANK_LOG_LEVEL: ${{ vars.CRANK_LOG_LEVEL }}

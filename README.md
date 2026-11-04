@@ -113,6 +113,7 @@ version; this table is the short one. Three further variables (`CRANK_CONFIRMATI
 | `CRANK_TX_TIMEOUT_MS` | variable | no | How long to wait for a message to confirm before alerting that it is stuck. Default 8 minutes. |
 | `WATCHDOG_CC` | variable | no | Who the watchdog's GitHub issue mentions, e.g. a team handle. |
 | `CRANK_MIN_BALANCE_FIL` | variable | no | Low-balance warning threshold. Defaults to the network's `minBalanceFil`. |
+| `ALERT_SERVICE_URL` / `ALERT_SERVICE_TOKEN` | variable / secret | no | The subscriber email service ([`alerts-service/`](alerts-service/README.md)). When set, every alert also goes to everyone who signed up there (throttled per alert), and the watchdog sends a daily heartbeat whose absence is itself an alert. |
 | `ALERT_TRANSPORT` | variable | no | `console` (default), `sendgrid`, `resend`, `webhook`. Comma-separate for several. |
 | `ALERT_EMAIL_TO` / `ALERT_EMAIL_FROM` | variables | no | Alert recipient and sender. |
 | `SENDGRID_API_KEY` / `RESEND_API_KEY` / `ALERT_WEBHOOK_URL` | secrets | no | Credentials for whichever transport is configured. |
@@ -231,6 +232,7 @@ abi/                   generated from upstream contracts; regenerate, never hand
 test/                  unit tests
 devnet/                local chain, contract prep, rehearsal, and fake-lotus.mjs (f02 for
                        Claim tests). Never on a cron runner.
+alerts-service/        email sign-up (double opt-in) and alert fan-out via Resend; a container for cranker.fidl.tech
 docs/
   RUNBOOK.md           operations: secrets, alerts, pausing, rotation, escalation
   WALLET.md            generating and funding both wallets. Read before you touch a key.

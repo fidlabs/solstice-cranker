@@ -174,6 +174,7 @@ reviewers -- they would hold every scheduled run for approval.
 | `CRANK_MAX_GATE_CATCHUP` | `8` | Gate calls per run while catching up. |
 | `CRANK_MAX_FEE_FIL` | `0.1` | The most one crank message may cost (gas limit × max fee per gas). Above it, nothing is sent and a warning goes out. |
 | `CRANK_TX_TIMEOUT_MS` | `480000` | How long to wait for a message to confirm before alerting that it is stuck. |
+| `ALERT_SERVICE_URL` | `https://alerts.cranker.fidl.tech` | The subscriber email service; the secret `ALERT_SERVICE_TOKEN` is its `INGEST_TOKEN`. See `alerts-service/README.md`. |
 | `WATCHDOG_CC` | `@fidlabs/solstice` | Who the watchdog issue mentions. Empty: nobody. |
 | `CRANK_CONFIRMATIONS` | `2` | Confirmations to wait after a send. |
 | `CRANK_LOG_LEVEL` | `debug` | When investigating. |
@@ -239,6 +240,7 @@ Space manual runs out: the concurrency group keeps one pending run and drops the
 | `Solstice cranker aborted` … `RPC node failed 3 times` | critical | The node did not answer for the call with a deadline. | Check the endpoint; [change it](#changing-an-rpc-endpoint) if it stays down. |
 | `reverted with unrecognised selector 0x…` | critical | `abi/` does not match the deployed contract. | Rebuild `abi/` from the deployed commit. |
 | `chainAgreesWithConfig: false` | warn / critical | `postPeriod`/`verificationWindow` disagree with the chain. | Pause; fix config; `npm run schedule`. |
+| `… has stopped reporting` (email, from the alert service) | critical | The watchdog has not run for three days: the workflow is disabled, failing before it starts, or Actions is down. | [Re-enable the workflow](#if-a-scheduled-workflow-gets-disabled); check the Actions tab. |
 | Watchdog issue opened | warn | A crank is overdue on chain, or a gas wallet is low. | Work the issue: `npm run preflight` first. |
 | **`NotLatestQuarter(q)`** / **quarter q never submitted** | **critical** | **Quarter q's share map is gone.** | [Escalate below.](#what-to-do-if-notlatestquarter-fires) Do not retry. |
 

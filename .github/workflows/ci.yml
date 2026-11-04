@@ -73,6 +73,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Alerts service tests
+        run: npm test --prefix alerts-service
+
   abi-drift:
     name: ABI drift vs upstream contracts
     runs-on: ubuntu-latest
