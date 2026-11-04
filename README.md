@@ -65,7 +65,7 @@ upstream and chain disagree.
 You need Node 20 or newer and nothing else.
 
 ```bash
-git clone https://github.com/decentramike/solstice-cranker
+git clone https://github.com/fidlabs/solstice-cranker
 cd solstice-cranker
 npm ci                 # npm ci --omit=dev on a production host; see below
 cp .env.example .env   # then fill in NETWORK and RPC_URL; keys only where they will send
@@ -83,7 +83,7 @@ are two: the cranker's EVM key and the Claim's f1 key, never the same key. You g
 them yourself, locally. They never go through a chat, an issue, or a PR.
 
 **Production installs use `npm ci --omit=dev`.** The runtime dependencies are ethers v6 and,
-for the native Claim message, `@noble/curves` and `@noble/hashes` (pinned). Hardhat, the local devnet and the dashboard are dev dependencies and must never
+for the native Claim message, `@noble/curves` and `@noble/hashes` (pinned). Hardhat and the local devnet are dev dependencies and must never
 be installed on the machine holding the key.
 
 ## Configuration
@@ -147,45 +147,18 @@ npm run crank        # decide and send
 npm run claim:dry    # discover and simulate the Claim
 ```
 
-## Two crankers
+## If the read path is the problem
 
-There are two entrypoints. They send the same two calls and you can run either, or both.
+`crank` reads `lastSubmittedQuarter`, the gate pointer and the chain's own view of the latest
+bound quarter, so it sends only what is due, spends nothing when nothing is due, and can tell you
+a quarter has been lost. Every optional read degrades to a warning, so only the SRA itself and the
+simulation stand between a run and `submitShares`. If an RPC endpoint is serving bad answers,
+[change the endpoint](docs/RUNBOOK.md#changing-an-rpc-endpoint). The calls are permissionless:
+in an emergency anyone can send `submitShares(Q)` by hand from any funded wallet.
 
-| | `npm run crank` | `npm run crank:simple` |
-| :-- | :-- | :-- |
-| Decides what is due by | reading chain state | arithmetic on the clock |
-| Contract reads per run | ~6 | **0** |
-| Gas when nothing is due | none — it simulates first | one reverted transaction |
-| Detects a permanently lost quarter | yes | no |
-| Notices a wrong `postPeriod` | yes, alerts on it | no — sends at the wrong time |
-| Can be stopped by an unreadable RPC | harder than it was, but yes | no |
-
-**`crank` is the default.** It knows what it is doing: it reads `lastSubmittedQuarter`, the
-gate pointer, and the chain's own view of the latest bound quarter, so it sends only what is
-actually due, spends nothing when nothing is due, and can tell you a quarter has been lost.
-
-**`crank:simple` is the fallback.** It reads nothing at all. The schedule is
-`genesisUnix + (activationEpoch + Q × epochsPerQuarter + postPeriod + verificationWindow) × 30`,
-which is four numbers already in `config/networks.json` and a clock. When that time arrives it
-sends both calls and reports whatever comes back. A revert is the expected answer when a call
-was not due, and is not treated as a failure.
-
-Use it when the read path is the problem — a rate-limited RPC, a node serving stale or
-malformed responses — because a cranker that never asks a question cannot be stopped by a bad
-answer. The cost is gas on reverts and a loss of every diagnostic that needs chain state.
-
-To switch, change one line in `.github/workflows/solstice-crank.yml`:
-
-```yaml
-- run: node scripts/crank-simple.mjs   # was: node scripts/crank.mjs
-```
-
-Both honour `CRANK_PAUSED`. Pausing is an operator decision, not a condition to be clever
-about.
-
-`CRANK_SIMPLE_WINDOW_HOURS` (default 6) is how long after a quarter binds the simple cranker
-keeps trying. Wider than one hour on purpose: the cron fires hourly, so a single missed run
-would otherwise lose the quarter. Repeat sends inside the window just revert.
+(An earlier read-nothing fallback, `crank-simple.mjs`, was removed: it was wired into no
+workflow, and it only tried for six hours after binding, so switching to it could lose a quarter
+the main cranker would still have had three months to submit.)
 
 ## Reverts you should expect
 
@@ -247,7 +220,7 @@ commit is the point. If a workflow does get disabled anyway: Actions → the wor
   ci.yml               tests on Node 20 and 24, plus the ABI drift tripwire
   keepalive.yml        weekly repo touch so the schedules are not disabled
 scripts/               crank.mjs, claim.mjs, gate.mjs, schedule.mjs, watchdog.mjs, preflight.mjs,
-                       crank-simple.mjs, sync-deployments.mjs
+                       sync-deployments.mjs
 src/                   the shared library; src/filecoin/ is the native side (addresses, CBOR,
                        message signing, Lotus client, f02 decoding); src/windows.mjs the gate
 config/
@@ -256,15 +229,12 @@ config/
   storage-slots.json   ERC-7201 slots read directly, because they have no getter
 abi/                   generated from upstream contracts; regenerate, never hand-edit
 test/                  unit tests
-devnet/                local chain, contract prep, rehearsal, demo, and fake-lotus.mjs (f02 for
+devnet/                local chain, contract prep, rehearsal, and fake-lotus.mjs (f02 for
                        Claim tests). Never on a cron runner.
-dashboard/             read-only demo dashboard. Devnet only.
 docs/
   RUNBOOK.md           operations: secrets, alerts, pausing, rotation, escalation
   WALLET.md            generating and funding both wallets. Read before you touch a key.
-  DEMO.md              how to run the local demo for an audience
-  DATA-CONTRACT.md     devnet/demo internal seam. Not production.
-PATCHES/               prepared changes to the governance repo. Not pushed.
+  DATA-CONTRACT.md     the shape of the run record (stdout JSON) and its vocabularies
 ```
 
 ## Links
@@ -277,5 +247,5 @@ PATCHES/               prepared changes to the governance repo. Not pushed.
 
 ## Ownership
 
-Owner: **@decentramike** (Michael Madoff, Filecoin Foundation). The named backup and the
+Maintained by **FIDL** ([fidlabs](https://github.com/fidlabs)), forked from decentramike/solstice-cranker. The named backup and the
 escalation path are in the DRI table in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).

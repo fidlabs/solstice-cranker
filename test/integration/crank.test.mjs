@@ -55,7 +55,7 @@ async function unavailable() {
   }
 
   // These tests mine, snapshot and revert. Another process doing the same on the same node
-  // (npm run rehearsal, npm run demo, the devnet server) makes every assertion here a race,
+  // (npm run rehearsal) makes every assertion here a race,
   // and reverting would throw away its work. Refuse rather than interfere.
   const before = Number(await F.rpc('eth_blockNumber'));
   await new Promise((r) => setTimeout(r, 500));

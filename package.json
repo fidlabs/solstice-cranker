@@ -19,10 +19,8 @@
     "devnet": "node devnet/node.mjs",
     "devnet:deploy": "node devnet/deploy.mjs",
     "rehearsal": "node devnet/rehearsal.mjs",
-    "demo": "node devnet/demo.mjs",
     "test": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:integration": "node --test --test-concurrency=1 test/integration/*.test.mjs",
-    "crank:simple": "node scripts/crank-simple.mjs",
     "schedule": "node scripts/schedule.mjs",
     "claim": "node scripts/claim.mjs",
     "claim:dry": "CLAIM_DRY_RUN=1 node scripts/claim.mjs",
@@ -40,7 +38,7 @@
   "license": "Apache-2.0 OR MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/decentramike/solstice-cranker.git"
+    "url": "https://github.com/fidlabs/solstice-cranker.git"
   },
-  "homepage": "https://github.com/decentramike/solstice-cranker#readme"
+  "homepage": "https://github.com/fidlabs/solstice-cranker#readme"
 }

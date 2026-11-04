@@ -2,7 +2,7 @@
 /**
  * The devnet's hands: everything that drives the chain into a state worth looking at.
  *
- * deploy.mjs, rehearsal.mjs, server.mjs and demo.mjs all sit on this module, so it owns the
+ * deploy.mjs, rehearsal.mjs and the integration tests sit on this module, so it owns the
  * three things they would otherwise each get subtly wrong -- which account is which, where a
  * quarter's windows actually fall, and how the packed ERC-7201 words decode.
  *
@@ -537,7 +537,7 @@ export function crankerEntrypointExists() {
 }
 
 // ---------------------------------------------------------------------------
-// Error decoding -- shared by the rehearsal's assertions and the server's event feed
+// Error decoding -- shared by the rehearsal's assertions
 // ---------------------------------------------------------------------------
 
 const SELECTORS = JSON.parse(readFileSync(join(ROOT, 'abi', 'selectors.json'), 'utf8'));
