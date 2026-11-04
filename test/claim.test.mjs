@@ -143,6 +143,25 @@ describe('Claim: guards', () => {
     assert.equal(fake.owed('t090'), FIL);
   });
 
+  it('a scheduled run with no key that finds FIL owed warns instead of going quietly green', async () => {
+    const { fake, client, config } = setup({ env: { CLAIM_PRIVATE_KEY: '', CLAIM_ADDRESS: FROM_T, CLAIM_MODE: 'weekly' } });
+    const { record, exitCode, alerts } = await runClaim(config, { lotus: client });
+    assert.equal(fake.log.pushed.length, 0);
+    assert.equal(exitCode, 0);
+    assert.equal(record.actions.at(-1).outcome, 'would-send');
+    const warn = alerts.alerts.find((a) => /weekly Claim is due but was not sent/.test(a.title));
+    assert.ok(warn, 'expected a warning');
+    assert.equal(warn.severity, 'warn');
+    assert.match(warn.body, /would pay 2 FIL now/);
+    assert.match(warn.body, /no CLAIM_PRIVATE_KEY/);
+  });
+
+  it('a dry run asked for by hand does not warn', async () => {
+    const { client, config } = setup({ env: { CLAIM_DRY_RUN: '1', CLAIM_MODE: 'weekly' } });
+    const { alerts } = await runClaim(config, { lotus: client });
+    assert.equal(alerts.alerts.some((a) => /was not sent/.test(a.title)), false);
+  });
+
   it('CRANK_PAUSED stops the Claim too', async () => {
     const { fake, client, config } = setup({ env: { CRANK_PAUSED: '1' } });
     const { record } = await runClaim(config, { lotus: client });

@@ -57,7 +57,8 @@ These are not suggestions.
 
 ## 1. Generate the key
 
-From the repository root, with dependencies installed (`npm ci`). This uses the repo's own
+From the repository root, with only the runtime dependencies installed (`npm ci --omit=dev`;
+the dev tree -- Hardhat, the devnet -- never belongs on a machine that creates or holds a key). This uses the repo's own
 ethers v6 — no extra tools, nothing downloaded, no network call.
 
 ```bash
@@ -260,7 +261,7 @@ key in both.
 
 ### Generate it (Mainnet)
 
-From the repository root, with `npm ci` done. No network call; prints the address only.
+From the repository root, with `npm ci --omit=dev` done. No network call; prints the address only.
 
 ```bash
 ( umask 077; node --input-type=module -e '

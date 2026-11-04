@@ -43,21 +43,33 @@ function summary(line) {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + '\n');
 }
 
-async function storageWord(rpcUrl, address, slot, index) {
-  const target = '0x' + (BigInt(slot) + BigInt(index)).toString(16).padStart(64, '0');
+async function rpcCall(rpcUrl, method, params) {
   const res = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getStorageAt', params: [address, target, 'latest'] }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
     signal: AbortSignal.timeout(15_000),
   });
   const body = await res.json();
   if (body.error || typeof body.result !== 'string') throw new Error(body.error?.message ?? 'no result');
-  return BigInt(body.result);
+  return body.result;
+}
+
+async function storageWord(rpcUrl, address, slot, index) {
+  const target = '0x' + (BigInt(slot) + BigInt(index)).toString(16).padStart(64, '0');
+  return BigInt(await rpcCall(rpcUrl, 'eth_getStorageAt', [address, target, 'latest']));
 }
 
 /** lastSubmittedQuarter, lastCheckedQuarter, gate completion -- the same slots src/chain.mjs reads. */
-export async function probeChain(rpcUrl, sra, swa) {
+export async function probeChain(rpcUrl, sra, swa, expectedChainId = null) {
+  // The SRA and SWA have the same addresses on calibnet and Mainnet, so an RPC_URL pointed at the
+  // wrong chain would answer these reads with the other chain's (much further along) progress and
+  // close a window that is still open. Ask the node which chain it is first; a mismatch is
+  // "unreadable", which fails open, and the crank job's own connect() then fails loudly.
+  if (expectedChainId !== null && expectedChainId !== undefined) {
+    const actual = BigInt(await rpcCall(rpcUrl, 'eth_chainId', []));
+    if (actual !== BigInt(expectedChainId)) throw new Error(`RPC reports chain ${actual}, expected ${expectedChainId}`);
+  }
   const slots = JSON.parse(readFileSync(join(ROOT, 'config', 'storage-slots.json'), 'utf8'));
   const low64 = (w) => Number(w & ((1n << 64n) - 1n));
   const [s0, g0, g3] = await Promise.all([
@@ -115,7 +127,7 @@ export async function gate(kind, env = process.env) {
   const rpcUrl = blank(env.RPC_URL) ? networks[network].rpcUrl : env.RPC_URL;
   const readChain = async () => {
     try {
-      return await probeChain(rpcUrl, sraAddr, swaAddr);
+      return await probeChain(rpcUrl, sraAddr, swaAddr, networks[network].chainId);
     } catch (err) {
       summary(`> **Gate (${kind}):** chain state unreadable (${err.message}); treating the window as open.`);
       return null;

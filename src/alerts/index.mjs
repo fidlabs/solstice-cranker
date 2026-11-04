@@ -55,6 +55,7 @@ async function sendSendgrid(alert, config) {
   const { sendgridKey, to, from } = config.alerts;
   if (!sendgridKey) throw new Error('SENDGRID_API_KEY is not set');
   if (!to) throw new Error('ALERT_EMAIL_TO is not set');
+  if (!from) throw new Error('ALERT_EMAIL_FROM is not set');
   return post(
     'https://api.sendgrid.com/v3/mail/send',
     { authorization: `Bearer ${sendgridKey}` },
@@ -72,6 +73,7 @@ async function sendResend(alert, config) {
   const { resendKey, to, from } = config.alerts;
   if (!resendKey) throw new Error('RESEND_API_KEY is not set');
   if (!to) throw new Error('ALERT_EMAIL_TO is not set');
+  if (!from) throw new Error('ALERT_EMAIL_FROM is not set');
   return post(
     'https://api.resend.com/emails',
     { authorization: `Bearer ${resendKey}` },

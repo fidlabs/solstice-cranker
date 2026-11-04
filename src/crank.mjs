@@ -54,6 +54,48 @@ function explorerUrl(config, txHash) {
 }
 
 /**
+ * The per-transaction spend ceiling, as one pure decision.
+ *
+ * `maxCostWei` is gasLimit x maxFeePerGas: the most the message can cost. When either is unknown
+ * (the node would not estimate, or it serves no EIP-1559 fee data) the cost cannot be bounded here
+ * and the send goes ahead -- refusing would let one flaky estimate block a deadline call.
+ */
+export function feeGuard({ gasLimit, maxFeePerGas, maxFeeWei }) {
+  if (gasLimit === undefined || gasLimit === null || maxFeePerGas === undefined || maxFeePerGas === null) {
+    return { ok: true, maxCostWei: null, message: null };
+  }
+  const maxCostWei = BigInt(gasLimit) * BigInt(maxFeePerGas);
+  if (maxCostWei > maxFeeWei) {
+    return {
+      ok: false,
+      maxCostWei,
+      message:
+        `held back: this message could cost up to ${formatEther(maxCostWei)} FIL, above the ` +
+        `${formatEther(maxFeeWei)} FIL cap (CRANK_MAX_FEE_FIL). Nothing was sent; the next run tries again.`,
+    };
+  }
+  return { ok: true, maxCostWei, message: null };
+}
+
+/**
+ * How many of the cranker's own transactions are still unmined: pending nonce minus mined nonce.
+ * Best-effort: a node that cannot answer the 'pending' tag reads as 0, never as a reason to stop.
+ */
+async function pendingNonceGap(ctx) {
+  if (!ctx.address) return 0;
+  try {
+    const [mined, pending] = await Promise.all([
+      ctx.provider.getTransactionCount(ctx.address, 'latest'),
+      ctx.provider.getTransactionCount(ctx.address, 'pending'),
+    ]);
+    return Math.max(0, Number(pending) - Number(mined));
+  } catch (err) {
+    log.debug('pending nonce check unavailable', { error: err.shortMessage ?? err.message });
+    return 0;
+  }
+}
+
+/**
  * Simulates, then sends.
  *
  * @returns an action record shaped by docs/DATA-CONTRACT.md
@@ -125,6 +167,20 @@ async function attempt({ contract, method, args = [], call, quarter, config, ctx
 
   // ---- 2. broadcast --------------------------------------------------------
   try {
+    // A transaction of ours still sitting in the mpool means anything sent now queues behind it.
+    // Sending more would only stack up messages that land (or not) together, so stop and say so.
+    const stuck = await pendingNonceGap(ctx);
+    if (stuck > 0) {
+      const message =
+        `${stuck} earlier transaction(s) from the cranker are still pending in the mpool; nothing new was ` +
+        'sent behind them. Replace or wait out the stuck message (docs/RUNBOOK.md, "A stuck transaction").';
+      log.error(`${label}: ${message}`);
+      return {
+        call, quarter: quarter ?? null, decision: 'failed', outcome: 'stuck', reason: null,
+        txHash: null, gasUsed: null, severity: 'critical', message,
+      };
+    }
+
     let overrides = {};
     try {
       const estimate = await fn.estimateGas(...args);
@@ -134,16 +190,43 @@ async function attempt({ contract, method, args = [], call, quarter, config, ctx
       log.debug('gas estimation failed, letting the node decide', { error: err.shortMessage ?? err.message });
     }
 
+    // Price the message ourselves, so the fee we check is the fee we send.
+    const fees = await ctx.provider.getFeeData();
+    if (fees.maxFeePerGas !== null && fees.maxFeePerGas !== undefined) {
+      overrides.maxFeePerGas = fees.maxFeePerGas;
+      overrides.maxPriorityFeePerGas = fees.maxPriorityFeePerGas ?? 0n;
+    }
+    const guard = feeGuard({ gasLimit: overrides.gasLimit, maxFeePerGas: overrides.maxFeePerGas, maxFeeWei: config.maxFeeWei });
+    if (!guard.ok) {
+      log.warn(`${label}: ${guard.message}`);
+      return {
+        call, quarter: quarter ?? null, decision: 'skipped', outcome: 'fee-capped', reason: null,
+        txHash: null, gasUsed: null, severity: 'warn', message: guard.message,
+      };
+    }
+
     const tx = await fn(...args, overrides);
-    log.info(`${label}: broadcast`, { tx: tx.hash });
+    log.info(`${label}: broadcast`, { tx: tx.hash, maxFeeFil: guard.maxCostWei === null ? 'unbounded' : formatEther(guard.maxCostWei) });
 
     // ethers v6 does not hand back a status-0 receipt: wait() throws CALL_EXCEPTION carrying it,
     // with no revert data. Take the receipt back out so a mined revert reaches the race check
     // below instead of escaping as an error. This is the only thing done with it -- never a resend.
     let receipt;
     try {
-      receipt = await tx.wait(config.confirmations);
+      receipt = await tx.wait(config.confirmations, config.txTimeoutMs);
     } catch (err) {
+      if (err?.code === 'TIMEOUT') {
+        // Broadcast, but not confirmed in time. It may still land; it may be stuck. Either way a
+        // person needs the hash, and the next run refuses to stack another message behind it.
+        const message =
+          `broadcast as ${tx.hash} but not confirmed within ${Math.round(config.txTimeoutMs / 60_000)} min. ` +
+          'Check it on an explorer before anything else is sent from the cranker wallet.';
+        log.error(`${label}: ${message}`);
+        return {
+          call, quarter: quarter ?? null, decision: 'failed', outcome: 'unconfirmed', reason: null,
+          txHash: tx.hash, gasUsed: null, severity: 'critical', message,
+        };
+      }
       if (err?.code !== 'CALL_EXCEPTION' || !err.receipt) throw err;
       receipt = err.receipt;
     }
@@ -247,7 +330,7 @@ export async function runCrank(config) {
   }
 
   const { provider, wallet, sra, swa, address } = await connect(config);
-  const ctx = { provider, config };
+  const ctx = { provider, config, address };
 
   // Everything from here to the submitShares attempt is best-effort.
   //
@@ -495,7 +578,7 @@ export async function runCrank(config) {
   } else if (pause.paused) {
     actions.push({
       call: 'submitShares', quarter: effectiveDueQuarter, decision: 'skipped', outcome: 'not-due',
-      reason: null, txHash: null, gasUsed: null, severity: 'info',
+      reason: null, txHash: null, gasUsed: null, severity: 'warn',
       message: `due for quarter ${effectiveDueQuarter} but the cranker is paused: ${pause.reason}`,
     });
   } else {
@@ -557,6 +640,24 @@ export async function runCrank(config) {
         },
       });
     }
+  }
+
+  // A green run that sends nothing while a quarter is due is the quietest way to lose one. Paused
+  // and Mainnet-sends-off runs are deliberate states, so this is a warning, not a failure -- but it
+  // must reach a person. A dry run someone asked for by hand (CRANK_DRY_RUN) is not news.
+  if (needsSubmit && config.targetQuarter === null && (pause.paused || config.mainnetBlocked)) {
+    const why = pause.paused ? pause.reason : 'NETWORK=mainnet and MAINNET_SEND_ENABLED is not set';
+    alerts.raise({
+      severity: 'warn',
+      title: `Solstice: submitShares(${effectiveDueQuarter}) is due but the cranker will not send it`,
+      body:
+        `Quarter ${effectiveDueQuarter} is bound and not submitted, and this cranker sends nothing because ${why}. ` +
+        (window.expiresAtEpoch === null
+          ? ''
+          : `The window closes at epoch ${window.expiresAtEpoch} (${epochsToDuration(window.marginEpochs, config.epochSeconds)} from now). `) +
+        'Unpause / enable sends, or make sure someone else submits it.',
+      context: { epoch: String(epoch), cranker: address, balanceFil: balance.fil },
+    });
   }
 
   // Warn while there is still time to act, not after.
@@ -637,6 +738,16 @@ export async function runCrank(config) {
         cap: config.maxGateCatchup,
       });
     }
+  }
+
+  // A call held back by the fee cap is not sent and not failed. It still needs a person to know.
+  for (const a of actions.filter((x) => x.outcome === 'fee-capped')) {
+    alerts.raise({
+      severity: 'warn',
+      title: `Solstice: ${a.call} held back by the fee cap`,
+      body: a.message,
+      context: { epoch: String(epoch), cranker: address, balanceFil: balance.fil },
+    });
   }
 
   // ---- balance --------------------------------------------------------------
