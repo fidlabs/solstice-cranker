@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.7.0",
-    "hardhat": "^2.22.17"
+    "hardhat": "^3.21.2"
   },
   "license": "Apache-2.0 OR MIT",
   "repository": {
