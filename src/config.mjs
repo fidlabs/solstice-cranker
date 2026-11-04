@@ -216,7 +216,16 @@ export function loadConfig(rawEnv = process.env, { requireKey = true } = {}) {
     stateDir: env.CRANK_STATE_DIR ? resolve(env.CRANK_STATE_DIR) : null,
 
     alerts: {
-      transports: (env.ALERT_TRANSPORT ?? 'console').split(',').map((s) => s.trim()).filter(Boolean),
+      // The subscriber service (alerts-service/) is added whenever ALERT_SERVICE_URL is set, on top of whatever
+      // ALERT_TRANSPORT names, so turning on email for subscribers never turns anything else off.
+      transports: [
+        ...new Set([
+          ...(env.ALERT_TRANSPORT ?? 'console').split(',').map((s) => s.trim()).filter(Boolean),
+          ...(env.ALERT_SERVICE_URL ? ['service'] : []),
+        ]),
+      ],
+      serviceUrl: env.ALERT_SERVICE_URL ? env.ALERT_SERVICE_URL.replace(/\/+$/, '') : null,
+      serviceToken: env.ALERT_SERVICE_TOKEN ?? null,
       to: env.ALERT_EMAIL_TO ?? null,
       from: env.ALERT_EMAIL_FROM ?? null,
       sendgridKey: env.SENDGRID_API_KEY ?? null,

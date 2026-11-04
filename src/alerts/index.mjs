@@ -93,11 +93,44 @@ async function sendWebhook(alert, config) {
   return post(url, {}, { ...alert, text: renderText(alert) }, 'webhook');
 }
 
+/**
+ * The subscriber service (alerts-service/): it mails everyone who signed up, and throttles repeats per key across runs
+ * -- this job runs every 15 minutes inside a window and cannot remember what it already said.
+ */
+async function sendService(alert, config) {
+  const { serviceUrl, serviceToken } = config.alerts;
+  if (!serviceUrl) throw new Error('ALERT_SERVICE_URL is not set');
+  if (!serviceToken) throw new Error('ALERT_SERVICE_TOKEN is not set');
+  return post(
+    `${serviceUrl}/api/alerts`,
+    { authorization: `Bearer ${serviceToken}` },
+    { key: `${alert.context.network}:${alert.title}`, severity: alert.severity, title: alert.title, text: renderText(alert) },
+    'service'
+  );
+}
+
+/**
+ * Tells the subscriber service this job is alive. If it goes quiet for three times `everySeconds`, subscribers hear
+ * about it -- the only signal for a workflow that stopped running at all. Best-effort: never throws.
+ */
+export async function heartbeat(config, name, everySeconds) {
+  const { serviceUrl, serviceToken } = config.alerts ?? {};
+  if (!serviceUrl || !serviceToken) return false;
+  try {
+    await post(`${serviceUrl}/api/heartbeat`, { authorization: `Bearer ${serviceToken}` }, { name, everySeconds }, 'heartbeat');
+    return true;
+  } catch (err) {
+    log.warn('heartbeat to the alert service failed', { error: err.message });
+    return false;
+  }
+}
+
 const TRANSPORTS = {
   console: sendConsole,
   sendgrid: sendSendgrid,
   resend: sendResend,
   webhook: sendWebhook,
+  service: sendService,
 };
 
 /**

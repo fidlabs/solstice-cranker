@@ -20,7 +20,7 @@ import {
   connect, currentEpoch, hasCode, observeLatestBoundQuarter,
   readChainGeometry, readSraQuarterState, readSwaGateState,
 } from '../src/chain.mjs';
-import { AlertSink } from '../src/alerts/index.mjs';
+import { AlertSink, heartbeat } from '../src/alerts/index.mjs';
 import { bindingEpoch, buildSchedule, epochsToDuration, expiryEpoch } from '../src/schedule.mjs';
 import { log, writeJobSummary } from '../src/logger.mjs';
 
@@ -201,6 +201,10 @@ async function main() {
         : findings.map((f) => `- **${f.severity}** — ${f.title}\n  ${f.body}`).join('\n'),
     ].join('\n')
   );
+
+  // The watchdog runs at least daily. The alert service raises its own alarm if this goes quiet for three days: a
+  // disabled workflow or a GitHub outage, which nothing that runs inside GitHub can report.
+  await heartbeat(config, `Solstice cranker watchdog (${config.networkName})`, 86_400);
 
   if (healthy) {
     process.stdout.write('healthy\n');
